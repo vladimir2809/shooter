@@ -1,4 +1,5 @@
 ﻿var pi = 3.1415926;
+var timeIter = 0;
 var socket = io();
 var mouseLeftPress=false;
 socket.on('message', function(data) {
@@ -15,6 +16,8 @@ var movement = {
   x1:0,
   y1:0,
   angle:0,
+  delayAttack:null,
+  timeAttack: 0,
 }
 Bullets = function () {
     this.bullet = {
@@ -172,13 +175,18 @@ document.addEventListener('mousemove', function (event) {
 //{
 //}
 socket.emit('new player');
+var timeOld = null;
 setInterval(function() {
+    var timeNow = new Date().getTime();
+    timeIter = timeNow - timeOld;
+    timeOld = new Date().getTime();
     if (mouseLeftPress==true)
     {
-        countShot++;
-        if (countShot>5)
+        movement.timeAttack += timeIter;
+        if (movement.timeAttack>movement.delayAttack)
         {
-            socket.emit('shot',{x:movement.x1,y:movement.y1,angle:movement.angle});
+            movement.timeAttack = 0;
+            socket.emit('shot',{x:movement.x1,y:movement.y1,angle:movement.angle,id:movement.id});
             countShot = 0;
         }
     }
@@ -204,6 +212,7 @@ socket.on('statePlayers', function(data) {
             movement.y = player.y;  
             movement.y1 = 25 * Math.sin(pi * (player.angle - 90) / 180) + player.y;
             movement.x1 = 25 * Math.cos(pi * (player.angle - 90) / 180) + player.x;
+            movement.delayAttack = player.delayAttack;
         }
         data[id].y1 = 25 * Math.sin(pi * (player.angle - 90) / 180) + player.y;
         data[id].x1 = 25 * Math.cos(pi * (player.angle - 90) / 180) + player.x;
