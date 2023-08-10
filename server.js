@@ -9,12 +9,13 @@ var app = express();
 var server = http.Server(app);
 var io = socketIO(server);
 var countId = 0;
-var quantityBot = 0;
+var quantityBot = 10;
 var pi = 3.1415926;
-var screenWidth = 800;
-var screenHeight = 600;
+var screenWidth = 1800;
+var screenHeight = 1600;
 var mapSize=40;
 var radius = 10;
+var distAttack = 300;
 var timeIter = 0;
 var line = { x:null, y:null, x1:null, y1:null, numP:null };// линия для вычесления пересечений
 console.log(__dirname);
@@ -32,9 +33,10 @@ var Bullets = function () {
         x:null,
         y:null,
         angle:null,
+        dist: 0,
         DMG:null,
     }
-    this.speed = 10;
+    this.speed = 20;
     this.bulletArr = [];
     this.shot=function(x,y,angle,DMG)
     {
@@ -58,6 +60,8 @@ var Bullets = function () {
                 dx = this.speed * Math.cos(pi * (this.bulletArr[i].angle - 90) / 180) ;
                 this.bulletArr[i].x += dx;
                 this.bulletArr[i].y += dy;
+                this.bulletArr[i].dist += Math.sqrt(dx * dx + dy * dy);
+                if (this.bulletArr[i].dist > distAttack) this.kill(i);
             }
         }
     }
@@ -99,7 +103,7 @@ var Bullets = function () {
 }
 var Walls=function()
 {
-    this.quantity = 40;
+    this.quantity = 140;
     this.wallArr = [];
     this.size = mapSize;
     this.wall = {
@@ -152,7 +156,7 @@ var walls = new Walls();;
 server.listen(5000, function() {
     console.log('Запускаю сервер на порте 5000');
     walls.init();
-    playerBotInit(2);
+    playerBotInit(quantityBot);
 });
 // Обработчик веб-сокетов
 io.on('connection', function(socket) {
@@ -167,7 +171,7 @@ setInterval(function () {
 var players = {};
 io.on('connection', function(socket) {
     socket.on('new player', function() {
-        let color="rgb("+randomInteger(0,255)+","+randomInteger(0,255)+","+randomInteger(0,255)+")";
+        let color="rgb("+randomInteger(0,155)+","+randomInteger(0,255)+","+randomInteger(0,255)+")";
         console.log(color);
         player = new Player();
         player.id = countId;
@@ -207,17 +211,18 @@ io.on('connection', function(socket) {
         var player = players[socket.id] || {};
         let dx = 0;
         let dy = 0;
+        let speed = 3;
         if (data.left) {
-          dx -= 5;
+          dx -= speed;
         }
         if (data.up) {
-          dy -= 5;
+          dy -= speed;
         }
         if (data.right) {
-          dx += 5;
+          dx += speed;
         }
         if (data.down) {
-          dy += 5;
+            dy += speed;
         }
         player.x += dx;
         player.y += dy;
@@ -332,6 +337,8 @@ function playerBotMoving()
             }
           //  players[attr].angle = 0;
             //console.log('STEPBOT: '+players[attr].id);
+            let attackId = null;
+            let minHP = 1000000;
             for (var attr2 in players)
             {        
                 //var accuracy = 5;
@@ -342,33 +349,42 @@ function playerBotMoving()
                     if (crossingTwoPoint(players[attr].x,players[attr].y,
                         players[attr2].x,players[attr2].y)==false)
                     {
-                        players[attr].takeAim = true;
-                        let angle = angleIm(players[attr].x,players[attr].y,
-                                    players[attr2].x,players[attr2].y);
-                        players[attr].angle = movingToAngle(players[attr].angle,angle, 50);
-                        //players[attr].y1 =  20* Math.sin(pi*(players[attr].angle - 90) / 180)+players[attr].y ;
-                        //players[attr].x1 =  20 * Math.cos(pi * (players[attr].angle - 90) / 180)+players[attr].x ;
-                        if (Math.abs(players[attr].angle-angle)<1)
+                        let dist = calcDist(players[attr].x,players[attr].y,
+                                            players[attr2].x,players[attr2].y);
+                        if (minHP>players[attr2].HP && dist<distAttack)
                         {
-                            players[attr].timeAttack += timeIter;
-                            if (players[attr].delayAttack < players[attr].timeAttack)
-                            {
-
-                                players[attr].timeAttack = 0;
-                                var accuracy = 5;
-                                bullets.shot(players[attr].x1,players[attr].y1,
-                                          players[attr].angle+accuracy-randomInteger(0,accuracy*2),0);
-                                console.log('SHOTBOT: '+players[attr2].id);
-                            }
+                            attackId = attr2;
+                            minHP = players[attr2].HP;
                         }
-
-                    }
-                    else
-                    {
-                           players[attr].takeAim = false;
+                        
                     }
                 }
-            }   
+            }
+            if (attackId==null) players[attr].takeAim = false;
+            if (attackId!=null)
+            {
+                players[attr].takeAim = true;
+                let angle = angleIm(players[attr].x,players[attr].y,
+                            players[attackId].x,players[attackId].y);
+                players[attr].angle = movingToAngle(players[attr].angle,angle, 50);
+                //players[attr].y1 =  20* Math.sin(pi*(players[attr].angle - 90) / 180)+players[attr].y ;
+                //players[attr].x1 =  20 * Math.cos(pi * (players[attr].angle - 90) / 180)+players[attr].x ;
+                if (Math.abs(players[attr].angle-angle)<1)
+                {
+                    players[attr].timeAttack += timeIter;
+                    if (players[attr].delayAttack < players[attr].timeAttack)
+                    {
+
+                        players[attr].timeAttack = 0;
+                        var accuracy = 5;
+                        bullets.shot(players[attr].x1,players[attr].y1,
+                                    players[attr].angle+accuracy-randomInteger(0,accuracy*2),10);
+                        console.log('SHOTBOT: '+players[attackId].id);
+                    }
+                }       
+            }
+            
+               
             players[attr].y1 =  25* Math.sin(pi*(players[attr].angle - 90) / 180)+players[attr].y ;
             players[attr].x1 =  25 * Math.cos(pi * (players[attr].angle - 90) / 180)+players[attr].x ;
           //  if (crossingTwoPoint(x1,y1,x2,y2))
