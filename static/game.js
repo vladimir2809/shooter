@@ -22,11 +22,7 @@ function Camera(){
         if (x < this.width / 2) this.x = 0;  
         if (y < this.height / 2) this.y = 0;
         if (x > map.width - this.width/2 ) this.x = map.width - this.width;
-        if (y > map.height - this.height/2 ) this.y = map.height - this.height;
-        else
-        {
-          
-        }
+        if (y > map.height - this.height/2 ) this.y = map.height - this.height
       
     }
 

@@ -10,6 +10,7 @@ var server = http.Server(app);
 var io = socketIO(server);
 var countId = 0;
 var quantityBot = 10;
+var quantityWall = 100;
 var pi = 3.1415926;
 var screenWidth = 1800;
 var screenHeight = 1600;
@@ -103,7 +104,7 @@ var Bullets = function () {
 }
 var Walls=function()
 {
-    this.quantity = 140;
+    this.quantity = quantityWall;
     this.wallArr = [];
     this.size = mapSize;
     this.wall = {
@@ -129,11 +130,12 @@ var Walls=function()
            // console.log (wall.lineArr)
             this.wallArr.push(wall);
         }
-        console.log(this.wallArr[2].lineArr);
+    ///    console.log(this.wallArr[2].lineArr);
     }
 }
 var Player = function(type='Player'){
     this.id = countId;
+    this.being = true;
     this.type = type;
     this.maxHP = 100;
     this.HP = 100;
@@ -148,6 +150,7 @@ var Player = function(type='Player'){
     this.accuracy = 5;
     this.angle = 0;
     this.takeAim = false;
+    this.lineArr = [];
 }
 var bullets = new Bullets();
 var walls = new Walls();;
@@ -347,7 +350,10 @@ function playerBotMoving()
                 if (players[attr].type=='Bot' && players[attr2].type=='Player')
                 {       
                     if (crossingTwoPoint(players[attr].x,players[attr].y,
-                        players[attr2].x,players[attr2].y)==false)
+                        players[attr2].x,players[attr2].y)==false &&
+                        crossLinePlayer(players[attr],players[attr2])==false)
+
+                        
                     {
                         let dist = calcDist(players[attr].x,players[attr].y,
                                             players[attr2].x,players[attr2].y);
@@ -378,8 +384,8 @@ function playerBotMoving()
                         players[attr].timeAttack = 0;
                         var accuracy = 5;
                         bullets.shot(players[attr].x1,players[attr].y1,
-                                    players[attr].angle+accuracy-randomInteger(0,accuracy*2),10);
-                        console.log('SHOTBOT: '+players[attackId].id);
+                                    players[attr].angle+accuracy-randomInteger(0,accuracy*2),0);
+                       // console.log('SHOTBOT: '+players[attackId].id);
                     }
                 }       
             }
@@ -464,14 +470,19 @@ setInterval(function() {
     bullets.update();
     bullets.collisionWalls(walls.wallArr);
     collisionPlayerBullets();
+    for (var attr in players)
+    {
+        players[attr].lineArr = calcLineArr(players[attr], 'Player', players[attr].id);
+    }
     playerBotMoving();
   //  bullets.shot(10,10,0,20);
     io.sockets.emit('stateBullets', bullets.bulletArr);
+    io.sockets.emit('statePlayers', players);
     //timeOld = new Date().getTime();
 }, 1000 / 60);
-setInterval(function() {
-  io.sockets.emit('statePlayers', players);
-}, 1000 / 60);
+//setInterval(function() {
+  
+//}, 1000 / 60);
 
 
 //функция получения случайного числа от мин да макс
@@ -551,6 +562,29 @@ function movingToAngle(angle,  angle1, speedRotation=1)// функция пла�
 
 
 }
+function crossLinePlayer(P1,P2)
+{
+    for (var attr in players)
+    {
+        for (let j = 0; j < players[attr].lineArr.length;j++)
+        {
+            if (players[attr].being==true)
+            {
+                let line = players[attr].lineArr[j];
+                //let panz1 = panzerArr[numPanz1];
+                //let panz2 = panzerArr[numPanz2];
+                if (line.numP!=P1.id && line.numP!=P2.id)
+                {
+                    if (IsCrossing(P1.x,P1.y,P2.x, P2.y,line.x,line.y,line.x1,line.y1)==true)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
 function crossingTwoPoint(x1,y1,x2,y2)// проверяет могут ли 2 точки соединиться по прямой без препятсвий стен
 {
     for (let i = 0; i < walls.wallArr.length;i++)
@@ -586,12 +620,12 @@ function calcLineArr(objOrigin,type="wall",numP=null)// расчитать ма�
 {
    let lineArr=[];
    let obj=JSON.parse(JSON.stringify(objOrigin))
-   if (type=='player')
+   if (type=='Player')
    {
-       obj.x = Math.trunc(obj.x / mapSize) * mapSize;
-       obj.y = Math.trunc(obj.y / mapSize) * mapSize;
-       obj.width=mapSize;
-       obj.height=mapSize;
+       obj.x = obj.x - radius ;//Math.trunc(obj.x / mapSize) * mapSize;
+       obj.y = obj.y - radius ;//Math.trunc(obj.y / mapSize) * mapSize;
+       obj.width = radius * 2;
+       obj.height = radius * 2;
    }
    for (let j=0;j<4;j++)
     {
