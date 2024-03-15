@@ -43,11 +43,11 @@ var movement = {
 }
 Bullets = function () {
     this.bullet = {
-        being:false,
+      //  being:false,
         x:null,
         y:null,
-        angle:null,
-        DMG:null,
+      //  angle:null,
+      //  DMG:null,
     }
     this.speed = 20;
     this.bulletArr = [];
@@ -59,7 +59,7 @@ Bullets = function () {
             {
                 context.beginPath();
                 context.fillStyle = "#FFFF00";
-	            context.arc(this.bulletArr[i].x-2-camera.x,this.bulletArr[i].y-2-camera.y, 2, 2*Math.PI, false);
+	            context.arc(this.bulletArr[i].x-camera.x,this.bulletArr[i].y-camera.y, 2, 2*Math.PI, false);
 	            context.fill();
 	            context.lineWidth = 1;
 	            context.strokeStyle = 'red';
@@ -138,6 +138,18 @@ document.addEventListener('keyup', function(event) {
       break;
   }
 });
+window.onblur = function()  {
+     // A
+      movement.left = false;
+            // W
+      movement.up = false;
+     // D
+      movement.right = false;
+     // S
+      movement.down = false;
+
+  // Снижение активности, если пользователь перешел на другую вкладку
+};
 var players = [];
 var wallArr = [];
 var burstArr = [];
@@ -206,10 +218,10 @@ setInterval(function() {
     var timeNow = new Date().getTime();
     timeIter = timeNow - timeOld;
     timeOld = new Date().getTime();
-
+    movement.timeAttack += timeIter;
     if (mouseLeftPress==true)
     {
-        movement.timeAttack += timeIter;
+        
         if (movement.timeAttack>movement.delayAttack)
         {
             movement.timeAttack = 0;
@@ -219,8 +231,8 @@ setInterval(function() {
     }
     //burstArr[0].start(300,300);
     if (burstArr[0].being==true)   burstArr[0].update();
-    console.log(camera);
-    
+   // console.log(camera);
+    movement.camera = camera;
   socket.emit('movement', movement);
 }, 1000 / 60);
 var canvas = document.getElementById('canvas');
@@ -263,6 +275,7 @@ socket.on('statePlayers', function(data) {
       
     }
     players = data;
+    console.log(data);
 });
 socket.on('newBurst', function (data) {
     burstArr[0].start(data.x-camera.x,data.y-camera.y);
@@ -278,7 +291,7 @@ socket.on('getId', function (value) {
 });
 socket.on('walls', function (data) {
     wallArr = data;
-    console.log(wallArr)
+   // console.log(wallArr)
 })
 window.addEventListener('mousedown', function () {
     if (event.which==1) mouseLeftPress=true;

@@ -9,7 +9,8 @@ var app = express();
 var server = http.Server(app);
 var io = socketIO(server);
 var countId = 0;
-var quantityBot = 10;
+var quantityBot = 8;
+var quantityBullet = 100;
 var quantityWall = 100;
 var pi = 3.1415926;
 var screenWidth = 1800;
@@ -28,7 +29,9 @@ app.get('/', function(request, response) {
     response.sendFile(path.join(__dirname, 'index.html'));
    // response.sendFile(path.join(__dirname, '/static/'));
 });
-var Bullets = function () {
+var Bullets = function () { 
+   
+
     this.bullet = {
         being:false,
         x:null,
@@ -37,17 +40,32 @@ var Bullets = function () {
         dist: 0,
         DMG:null,
     }
-    this.speed = 20;
+    this.speed = 20; 
     this.bulletArr = [];
+    this.init=function()
+    {
+        for (let i = 0; i < quantityBullet;i++)
+        {
+            let bullet = clone(this.bullet);
+            bullet.being = false;
+            this.bulletArr.push(bullet);
+        }
+    }
     this.shot=function(x,y,angle,DMG)
     {
-        let bullet = clone(this.bullet);
-        bullet.being = true;
-        bullet.x = x;
-        bullet.y = y;
-        bullet.angle = angle;
-        bullet.DMG = DMG;
-        this.bulletArr.push(bullet);
+        for (let i = 0; i < quantityBullet;i++)
+        if (this.bulletArr[i].being==false)
+        {
+            let bullet = clone(this.bullet);
+            bullet.being = true;
+            bullet.x = x;
+            bullet.y = y;
+            bullet.angle = angle;
+            bullet.DMG = DMG;
+            this.bulletArr[i] = bullet;
+            break;
+        }
+        //this.bulletArr.push(bullet);
     }
     this.update=function()
     {
@@ -150,14 +168,17 @@ var Player = function(type='Player'){
     this.accuracy = 5;
     this.angle = 0;
     this.takeAim = false;
+    this.camera = {},
     this.lineArr = [];
 }
+// 64 bit * (16 + 5*4)=36 param * 8 bot * 60 fps 
 var bullets = new Bullets();
+bullets.init();
 var walls = new Walls();;
 
 // Запуск сервера
 server.listen(5000, function() {
-    console.log('Запускаю сервер на порте 5000');
+    console.log('Start server by port 5000');
     walls.init();
     playerBotInit(quantityBot);
 });
@@ -177,6 +198,7 @@ io.on('connection', function(socket) {
         let color="rgb("+randomInteger(0,155)+","+randomInteger(0,255)+","+randomInteger(0,255)+")";
         console.log(color);
         player = new Player();
+        player.socketId = socket.id;
         player.id = countId;
         player.type = 'Player';
         player.maxHP = 100;
@@ -207,7 +229,8 @@ io.on('connection', function(socket) {
     io.to(socket.id).emit('getId', countId);
     io.to(socket.id).emit('walls', walls.wallArr);
     console.log(socket.id);
-    countId++;
+    countId++; 
+    console.log(memorySizeOf(players, true));
     });
 
     socket.on('movement', function(data) {
@@ -235,6 +258,8 @@ io.on('connection', function(socket) {
             player.y -= dy;
         }
         player.angle = data.angle;
+        player.camera = data.camera;
+        //console.log(player.camera);
   }); 
   socket.on('shot', function (data) {
       for (var attr in players)
@@ -247,7 +272,7 @@ io.on('connection', function(socket) {
       }
      
       bullets.shot(data.x,data.y,data.angle+accuracy-randomInteger(0,accuracy*2),20);
-      console.log('shot');
+    //  console.log('shot');
   });
 
 });
@@ -349,15 +374,14 @@ function playerBotMoving()
              //               players[attr].angle+accuracy-randomInteger(0,accuracy*2),20);
                 if (players[attr].type=='Bot' && players[attr2].type=='Player')
                 {       
-                    if (crossingTwoPoint(players[attr].x,players[attr].y,
+                    let dist = calcDist(players[attr].x,players[attr].y,
+                                            players[attr2].x,players[attr2].y);
+                    if (dist<distAttack && crossingTwoPoint(players[attr].x,players[attr].y,
                         players[attr2].x,players[attr2].y)==false &&
                         crossLinePlayer(players[attr],players[attr2])==false)
-
-                        
                     {
-                        let dist = calcDist(players[attr].x,players[attr].y,
-                                            players[attr2].x,players[attr2].y);
-                        if (minHP>players[attr2].HP && dist<distAttack)
+                        
+                        if (minHP>players[attr2].HP )
                         {
                             attackId = attr2;
                             minHP = players[attr2].HP;
@@ -384,7 +408,7 @@ function playerBotMoving()
                         players[attr].timeAttack = 0;
                         var accuracy = 5;
                         bullets.shot(players[attr].x1,players[attr].y1,
-                                    players[attr].angle+accuracy-randomInteger(0,accuracy*2),0);
+                                    players[attr].angle+accuracy-randomInteger(0,accuracy*2),10);
                        // console.log('SHOTBOT: '+players[attackId].id);
                     }
                 }       
@@ -476,10 +500,75 @@ setInterval(function() {
     }
     playerBotMoving();
   //  bullets.shot(10,10,0,20);
-    io.sockets.emit('stateBullets', bullets.bulletArr);
-    io.sockets.emit('statePlayers', players);
+    let bulletsTrue = [];
+    for (let i = 0; i < quantityBullet;i++)
+    {
+        if (bullets.bulletArr[i].being==true)
+        {
+            let bullet = {
+                x: bullets.bulletArr[i].x,
+                y: bullets.bulletArr[i].y,
+                being: bullets.bulletArr[i].being,
+            }
+            bulletsTrue.push(bullet);
+        }
+    }
+    let playersTrue = [];
+    //for (let i = 0; io.sockets.length;i++)
+    {    
+        for (var attr in players)
+        {
+            playersTrue = [];
+            if (players[attr].being==true)
+            //if (players[attr].socketId==io.socket[i].id)
+            {
+                
+                for (var attr2 in players)
+                {         
+                    if (players[attr2].being==true)
+                    if (checkInCamera(players[attr].camera,players[attr2]) || players[attr].id==players[attr2].id)
+                    {
+                        let player = {
+                            being: players[attr2].being,
+                            id: players[attr2].id,
+                            type: players[attr2].type,
+                            x: players[attr2].x,
+                            y: players[attr2].y,
+                            /*  x1: players[attr2].x1,
+                            y1: players[attr2].y1,*/
+                            HP: players[attr2].HP,
+                            maxHP: players[attr2].maxHP,
+                            angle: players[attr2].angle,
+                            color:players[attr2].color,
+                            delayAttack:players[attr2].delayAttack,
+                        }
+                        playersTrue.push(player);
+                    }
+                }
+               
+               //io.to(players[attr].socketId).emit('statePlayers', playersTrue);
+            } 
+            //io.to(players[attr].socketId).emit('statePlayers', [playersTrue,players[attr].id]);
+            io.to(players[attr].socketId).emit('statePlayers', playersTrue);
+            //io.sockets.emit('statePlayers', playersTrue);
+        }
+    }
+    io.sockets.emit('stateBullets', bulletsTrue);
+
+  
+  //  io.sockets.emit('statePlayers', playersTrue);
     //timeOld = new Date().getTime();
 }, 1000 / 60);
+function checkInCamera(camera,player) 
+{
+    if (camera.x<player.x && camera.x+camera.width>player.x &&
+        camera.y<player.y && camera.y+camera.height>player.y)
+    {
+        return true;
+    }
+    
+    return false;
+}
 //setInterval(function() {
   
 //}, 1000 / 60);
@@ -663,3 +752,44 @@ function calcLineArr(objOrigin,type="wall",numP=null)// расчитать ма�
     }
     return lineArr;
 }
+function memorySizeOf( object,format=false ) // посчитать сколько памяти занимает обьект
+ {
+
+    var objectList = [];
+    var stack = [ object ];
+    var bytes = 0;
+
+    while ( stack.length ) {
+        var value = stack.pop();
+
+        if ( typeof value === 'boolean' ) {
+            bytes += 4;
+        }
+        else if ( typeof value === 'string' ) {
+            bytes += value.length * 2;
+        }
+        else if ( typeof value === 'number' ) {
+            bytes += 8;
+        }
+        else if
+        (
+            typeof value === 'object'
+            && objectList.indexOf( value ) === -1
+        )
+        {
+            objectList.push( value );
+
+            for( var i in value ) {
+                stack.push( value[ i ] );
+            }
+        }
+    }
+    return format==false?bytes:formatByteSize(bytes);
+}
+function formatByteSize(bytes) // перевод значения памяти в человека понятный вид
+{
+    if(bytes < 1024) return bytes + " bytes";
+    else if(bytes < 1048576) return(bytes / 1024).toFixed(3) + " KiB";
+    else if(bytes < 1073741824) return(bytes / 1048576).toFixed(3) + " MiB";
+    else return(bytes / 1073741824).toFixed(3) + " GiB";
+};
