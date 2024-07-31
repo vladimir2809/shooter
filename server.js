@@ -4,12 +4,19 @@ var express = require('express');
 var http = require('http');
 var path = require('path');
 var socketIO = require('socket.io');
+const mariadb = require('mariadb/callback');
+const conn = mariadb.createConnection({
+      host: '127.0.0.1', 
+      user:'vladimir',
+      password: '123456',
+      database:'DB1',
+    });
 var app = express();
 //var func= require('function');
 var server = http.Server(app);
 var io = socketIO(server);
 var countId = 0;
-var quantityBot = 8;
+var quantityBot = 23;
 var quantityBullet = 100;
 var quantityWall = 100;
 var pi = 3.1415926;
@@ -179,6 +186,13 @@ var walls = new Walls();;
 // Запуск сервера
 server.listen(5000, function() {
     console.log('Start server by port 5000');
+    conn.connect(err => {
+      if (err) {
+        console.log("No Connect: " + err);
+      } else {
+        console.log("Connect ! connection identifier: " + conn.threadId);
+      }
+    });
     walls.init();
     playerBotInit(quantityBot);
 });
@@ -193,44 +207,84 @@ setInterval(function () {
     io.sockets.emit('message', 'hi!');
 }, 1000);
 var players = {};
-io.on('connection', function(socket) {
-    socket.on('new player', function() {
-        let color="rgb("+randomInteger(0,155)+","+randomInteger(0,255)+","+randomInteger(0,255)+")";
-        console.log(color);
-        player = new Player();
-        player.socketId = socket.id;
-        player.id = countId;
-        player.type = 'Player';
-        player.maxHP = 100;
-        player.HP = player.maxHP;
-        player.x = 0;
-        player.y = 0;
-        player.x1 = 0;
-        player.y1 = 0;
-        player.color = color;
-        player.angle = 0;
-        player.accuracy = 2;
-        player.delayAttack = 250;
-        players[socket.id] = player;
-        //players[socket.id] = {
-        //    id: countId,
-        //    maxHP:100,
-        //    HP:100,
-        //    x: 300,
-        //    y: 300,
-        //    x1:0,
-        //    y1:0,
-        //    color: color,
-        //    angle: 0,
-        //};
-    let coordXY = calcNewCoordinates();
+function initPlayer(color,socketId,idDB)
+{
+   // let color="rgb("+randomInteger(0,155)+","+randomInteger(0,255)+","+randomInteger(0,255)+")";
+    console.log(color);
+    let player = new Player();
+    player.socketId = socketId;
+    player.id = countId;
+    player.idDB = idDB;
+    player.type = 'Player';
+    player.maxHP = 100;
+    player.HP = player.maxHP;
+    player.x = 0;
+    player.y = 0;
+    player.x1 = 0;
+    player.y1 = 0;
+    player.color = color;
+    player.angle = 0;
+    player.accuracy = 2;
+    player.delayAttack = 250;
+/*    players[socket.id] = player;*/
+    //players[socket.id] = {
+    //    id: countId,
+    //    maxHP:100,
+    //    HP:100,
+    //    x: 300,
+    //    y: 300,
+    //    x1:0,
+    //    y1:0,
+    //    color: color,
+    //    angle: 0,
+    //};
+ /*   let coordXY = calcNewCoordinates();
     players[socket.id].x = coordXY.x;
-    players[socket.id].y = coordXY.y;
-    io.to(socket.id).emit('getId', countId);
-    io.to(socket.id).emit('walls', walls.wallArr);
-    console.log(socket.id);
-    countId++; 
+    players[socket.id].y = coordXY.y;*/
+   // io.to(socket.id).emit('getId', countId);
+    //io.to(socket.id).emit('walls', walls.wallArr);
+
+    console.log(socketId);
+            
+    //readAndEmitPlayerDB(id,socket.id)
+    //console.log('ID: ' +id);
+    //console.log (res)
+    //io.to(socket.id).emit('lastTime',res.time );
+
+//    countId++; 
     console.log(memorySizeOf(players, true));
+    return player;
+}
+io.on('connection', function(socket) {
+    socket.on('new player', function(id) {
+        console.log('ID '+id);
+        console.log('countID '+countId);
+        if (id==null)
+        {
+            let color="rgb("+randomInteger(0,155)+","+randomInteger(0,255)+","+randomInteger(0,255)+")";
+            players[socket.id] = initPlayer(color,socket.id);
+    /*        insertPlayerDB(countId);
+            io.to(socket.id).emit('getId', countId);*/
+            maxIdDB(socket.id);
+            io.to(socket.id).emit('walls', walls.wallArr);
+            let coordXY = calcNewCoordinates();
+            players[socket.id].x = coordXY.x;
+            players[socket.id].y = coordXY.y;
+            
+            countId++;
+        }
+        else
+        {
+            players[socket.id] = initPlayer('black',socket.id,countId);
+        //    io.to(socket.id).emit('getId',id);
+            io.to(socket.id).emit('walls', walls.wallArr);
+            let coordXY = calcNewCoordinates();
+            players[socket.id].x = coordXY.x;
+            players[socket.id].y = coordXY.y;
+            readAndEmitPlayerDB(id,socket.id)
+           /* console.log ('maxId= '+maxIdDB());*/
+        }
+        
     });
 
     socket.on('movement', function(data) {
@@ -534,8 +588,8 @@ setInterval(function() {
                             type: players[attr2].type,
                             x: players[attr2].x,
                             y: players[attr2].y,
-                            /*  x1: players[attr2].x1,
-                            y1: players[attr2].y1,*/
+                            x1: players[attr2].x1,
+                            y1: players[attr2].y1,
                             HP: players[attr2].HP,
                             maxHP: players[attr2].maxHP,
                             angle: players[attr2].angle,
@@ -559,6 +613,47 @@ setInterval(function() {
   //  io.sockets.emit('statePlayers', playersTrue);
     //timeOld = new Date().getTime();
 }, 1000 / 60);
+function maxIdDB(socketId) 
+{
+    let res = null;
+    conn.query("SELECT MAX(id) FROM user;", (err, rows, meta) => {
+        if (err) throw err;
+        res = rows[0]["MAX(id)"];;
+        console.log("555 "+rows[0]["MAX(id)"]);
+        insertPlayerDB(res+1);
+        io.to(socketId).emit('getId', res+1);
+    });
+}
+function insertPlayerDB(id)
+{
+    let idMovement = countId;
+    conn.query("INSERT INTO user (id, time, idMovement) VALUES ("+id+", CURTIME(),"+idMovement+");", (err, rows, meta) => {
+        if (err) throw err;
+        console.log(rows); //[ { { 'now()': 2018-07-02T17:06:38.000Z } ]
+        //conn.end(err => {
+        //    // обработка ошибки
+        //    if (err) console.log('error end connect: ' + err);
+        //    else console.log('connect END!!! ');
+        //});
+    });
+}
+function readAndEmitPlayerDB(id,socketId)
+{
+    let row
+    conn.query("SELECT * FROM user WHERE id="+id+"", (err, rows, meta) => {
+       // if (err) throw err;
+        console.log('error',err);
+        console.log('rows', rows); //[ { { 'now()': 2018-07-02T17:06:38.000Z } ]
+  /*      
+        readAndEmitPlayerDB(id+1,socketId)
+            console.log('ID: ' + id);
+            console.log (res)*/
+        console.log ('idMovement',rows[0].idMovement)
+        io.to(socketId).emit('getId', rows[0].idMovement);
+        io.to(socketId).emit('lastTime',rows[0].time );
+    });
+    return row;
+}
 function checkInCamera(camera,player) 
 {
     if (camera.x<player.x && camera.x+camera.width>player.x &&

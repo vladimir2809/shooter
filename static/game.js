@@ -207,12 +207,12 @@ document.addEventListener('mousemove', function (event) {
     mouseX = event.x;
     mouseY = event.y;
    
-    //console.log(movement.x+' '+ movement.y+' '+ event.x+' '+ event.y);
+   // console.log(movement.x+' '+ movement.y+' '+ event.x+' '+ event.y);
 });
 //function angleIm(x1,y1, x2,y2)
 //{
 //}
-socket.emit('new player');
+socket.emit('new player',loadIdDB());
 var timeOld = null;
 setInterval(function() {
     var timeNow = new Date().getTime();
@@ -231,8 +231,11 @@ setInterval(function() {
     }
     //burstArr[0].start(300,300);
     if (burstArr[0].being==true)   burstArr[0].update();
-   // console.log(camera);
+  //  console.log(camera);
     movement.camera = camera;
+
+   // console.log(movement);
+
   socket.emit('movement', movement);
 }, 1000 / 60);
 var canvas = document.getElementById('canvas');
@@ -247,6 +250,8 @@ socket.on('statePlayers', function(data) {
     for (var id in data) 
     {
         var player = data[id];
+        //console.log(movement.id,player.id);
+        //console.log(id);
         if (movement.id==player.id)
         {
             movement.x = player.x;
@@ -275,7 +280,7 @@ socket.on('statePlayers', function(data) {
       
     }
     players = data;
-    console.log(data);
+  //  console.log(data);
 });
 socket.on('newBurst', function (data) {
     burstArr[0].start(data.x-camera.x,data.y-camera.y);
@@ -287,7 +292,12 @@ socket.on('stateBullets', function (data) {
 });
 socket.on('getId', function (value) {
     movement.id = value;
+    saveIdDB(value);
     loadImageArr();
+    console.log("getId",movement.id);
+});
+socket.on('lastTime', function (value) {
+    console.log('last Time: '+ value);
 });
 socket.on('walls', function (data) {
     wallArr = data;
@@ -306,6 +316,29 @@ window.addEventListener('mouseup', function () {
         //}, 100);
     } 
 });
+function saveIdDB(id)
+{
+    localStorage.setItem('shooterId',JSON.stringify({id:id}));
+}
+function loadIdDB() 
+{
+    if (localStorage.getItem('shooterId')!=null &&
+        localStorage.getItem('shooterId')!=undefined)
+    {
+        let data=localStorage.getItem('shooterId');
+        data = JSON.parse(data);
+        return data.id;
+    }
+    else
+    {
+        return null;
+    }
+
+}
+function removeIdDB()
+{
+    localStorage.removeItem('shooterId');
+}
 //// функция расчета угла между 2 точками
 //function angleIm(x1,y1, x2,y2){
 //  res=Math.atan2(y1-y2,x1-x2)*(180/3.14)-90;
