@@ -1,9 +1,23 @@
-﻿    var pi = 3.1415926;
+﻿var pi = 3.1415926;
+
+var screenWidth = 550;
+var screenHeight = 550;
+var windowWidth=document.documentElement.clientWidth;
+var windowHeight=document.documentElement.clientHeight;
+console.log (windowWidth, windowHeight)
+var canvasWidth = 550;
+var canvasHeight = 550;
+var canvasWidthMore = true;
+var mouseMultX = 1;
+var mouseMultY = 1;
+
 var timeIter = 0;
 var socket = io();
 var mouseLeftPress=false;
 var mouseX = null;
 var mouseY = null;
+var mouseOffsetX = 0;
+var mouseOffsetY = 0;
 socket.on('message', function(data) {
     console.log(data);
 });
@@ -14,8 +28,8 @@ var map = {
 function Camera(){
     this.x=0;
     this.y=0;
-    this.width=800;
-    this.height=600;
+    this.width=550;
+    this.height=550;
     this.focus = function (x, y) {
         this. x = x - this.width / 2;
         this.y = y - this.height / 2;
@@ -26,6 +40,11 @@ function Camera(){
       
     }
 
+}
+function setOffsetMousePosXY(x,y)// устонавить смешения координаат для прицелевания так как экран начинается не в 0 0
+{
+    mouseOffsetX = x;
+    mouseOffsetY = y;
 }
 var movement = {
   id:null,
@@ -104,6 +123,60 @@ function loadImageArr()// загрузить массив изображений
      }  
    // console.log(imageArr);
 }
+function updateSize()// изменить размер изображений для адаптивность, вызавается при изменении размеров экрана
+{
+    windowWidth=document.documentElement.clientWidth;
+    windowHeight=document.documentElement.clientHeight;
+    console.log (windowWidth, windowHeight)
+    let mult =1;
+    if (windowWidth>=windowHeight)
+    {
+        canvasWidth = /*canvas.width = */windowHeight;//*screenWidth/screenHeight;
+        canvasHeight = /*canvas.height = */windowHeight;
+
+        // if (canvasWidth>windowWidth)
+        // {
+        //    mult = windowWidth/canvasWidth;
+        //   // canvas.width =
+        //        canvasWidth *= mult;
+        //    //canvas.height =
+        //        canvasHeight *= mult;
+        // }
+
+
+        canvasWidthMore = true;
+    }
+    else
+    {
+        canvasWidthMore = false;
+        canvasWidth = /*canvas.width*/  windowWidth;
+        canvasHeight = /*canvas.height*/  windowWidth;//*screenHeight/screenWidth;
+    }
+
+    console.log (canvasWidth, canvasHeight)
+
+    canvas.setAttribute('width',canvasWidth);
+    canvas.setAttribute('height',canvasHeight);
+    canvas.style.setProperty('left', (window.innerWidth - canvas.width)/2 + 'px'); 
+    canvas.style.setProperty('top', (window.innerHeight - canvas.height) / 2 + 'px'); 
+    if (canvasWidthMore==true)
+    {
+        context.scale(windowHeight / screenHeight * mult, windowHeight / screenHeight * mult);   
+        mouseMultX = windowHeight / screenHeight * mult;
+        mouseMultY = windowHeight / screenHeight * mult;
+    }
+    else
+    {
+       context.scale(windowWidth/screenWidth,windowWidth/screenWidth);
+        mouseMultX = windowWidth / screenWidth;
+        mouseMultY = windowWidth / screenWidth;
+    }
+    setOffsetMousePosXY((window.innerWidth - canvas.width)/2,
+                           (window.innerHeight - canvas.height)/2);
+    // camera.width = canvasWidth;
+    // camera.height = canvasHeight;
+    //  camera.focus(movement.x,movement.y);
+}
 var bullets = new Bullets();
 document.addEventListener('keydown', function(event) {
   switch (event.keyCode) {
@@ -160,9 +233,14 @@ for (let i = 0; i < 20;i++)
     burstArr.push(burst);
 }
 var countShot = 0;
+window.onresize = function(){
+    updateSize();
+}
 function drawAll() 
 {
+    
     context.clearRect(0, 0, 800, 600);
+    
     for (var id in players) 
     {
         var player = players[id];
@@ -236,8 +314,8 @@ setInterval(function() {
   socket.emit('movement', movement);
 }, 1000 / 60);
 var canvas = document.getElementById('canvas');
-canvas.width = 800;
-canvas.height = 600;
+canvas.width = canvasWidth;
+canvas.height = canvasHeight;
 var context = canvas.getContext('2d');
 let y1 = null;
 let x1 = null;
@@ -251,7 +329,10 @@ socket.on('statePlayers', function(data) {
         {
             movement.x = player.x;
             movement.y = player.y;  
-            movement.angle = angleIm(movement.x+radius-camera.x, movement.y+radius-camera.y, mouseX, mouseY);
+            movement.angle = angleIm((movement.x+radius / 2-camera.x) /** mouseMultX*/, 
+                                        (movement.y+radius / 2-camera.y) /*** mouseMultY*/, 
+                                        (mouseX - mouseOffsetX) / mouseMultX,
+                                        (mouseY - mouseOffsetY) / mouseMultY);
             movement.y1 = 25 * Math.sin(pi * (player.angle - 90) / 180) + player.y;
             movement.x1 = 25 * Math.cos(pi * (player.angle - 90) / 180) + player.x;
             movement.delayAttack = player.delayAttack;
@@ -275,7 +356,7 @@ socket.on('statePlayers', function(data) {
       
     }
     players = data;
-    console.log(data);
+    //console.log(data);
 });
 socket.on('newBurst', function (data) {
     burstArr[0].start(data.x-camera.x,data.y-camera.y);
@@ -287,6 +368,8 @@ socket.on('stateBullets', function (data) {
 });
 socket.on('getId', function (value) {
     movement.id = value;
+    updateSize();
+    // camera.focus ()
     loadImageArr();
 });
 socket.on('walls', function (data) {

@@ -151,21 +151,33 @@ var Walls=function()
     ///    console.log(this.wallArr[2].lineArr);
     }
 }
+var optionPlayer = function()
+{
+    this.maxHP = 100;
+    this.delayAttack = 1250;
+    this.accuracy = 5;
+    this.damage = 10;
+    this.speed = 2;
+
+}
 var Player = function(type='Player'){
+    var opt= new optionPlayer();
     this.id = countId;
     this.being = true;
     this.type = type;
-    this.maxHP = 100;
-    this.HP = 100;
+    this.maxHP = opt.maxHP;
+    this.HP = opt.maxHP;  
+    this.speed = opt.speed; 
+    this.damage = opt.damage;
+    this.delayAttack = opt.delayAttack; 
+    this.accuracy = opt.accuracy;
     this.vector = null;
     this.x = 300;
     this.y = 300;
     this.x1 = 0;
     this.y1 = 0;
     this.color = '';
-    this.delayAttack = 150;
     this.timeAttack = 0;
-    this.accuracy = 5;
     this.angle = 0;
     this.takeAim = false;
     this.camera = {},
@@ -201,7 +213,7 @@ io.on('connection', function(socket) {
         player.socketId = socket.id;
         player.id = countId;
         player.type = 'Player';
-        player.maxHP = 100;
+        player.maxHP = player.maxHP;
         player.HP = player.maxHP;
         player.x = 0;
         player.y = 0;
@@ -209,8 +221,8 @@ io.on('connection', function(socket) {
         player.y1 = 0;
         player.color = color;
         player.angle = 0;
-        player.accuracy = 2;
-        player.delayAttack = 250;
+        player.accuracy = player.accuracy;
+        player.delayAttack = player.delayAttack;
         players[socket.id] = player;
         //players[socket.id] = {
         //    id: countId,
@@ -239,16 +251,16 @@ io.on('connection', function(socket) {
         let dy = 0;
         let speed = 3;
         if (data.left) {
-          dx -= speed;
+          dx -= player.speed;
         }
         if (data.up) {
-          dy -= speed;
+          dy -= player.speed;
         }
         if (data.right) {
-          dx += speed;
+          dx += player.speed;
         }
         if (data.down) {
-            dy += speed;
+            dy += player.speed;
         }
         player.x += dx;
         player.y += dy;
@@ -262,18 +274,28 @@ io.on('connection', function(socket) {
         //console.log(player.camera);
   }); 
   socket.on('shot', function (data) {
-      for (var attr in players)
-      {
-          if (players[attr].id==data.id)
-          {
-             var accuracy = players[attr].accuracy;
-             break;
-          }
-      }
-     
-      bullets.shot(data.x,data.y,data.angle+accuracy-randomInteger(0,accuracy*2),20);
-    //  console.log('shot');
-  });
+        for (var attr in players)
+        {
+            if (players[attr].id==data.id)
+            {
+                var accuracy = players[attr].accuracy;
+                var DMG = players[attr].damage;
+                var timeAttack = players[attr].timeAttack;
+                var delayAttack= players[attr].delayAttack;
+                break;
+            }
+        }
+        if (delayAttack <= timeAttack)
+
+        {
+
+            bullets.shot(data.x,data.y,
+                data.angle+accuracy-randomInteger(0,accuracy*2),
+                    DMG);
+                    //  console.log('shot');
+        }
+        console.log (timeAttack, ' ', delayAttack)
+    });
 
 });
 function calcNewCoordinates()
@@ -497,6 +519,10 @@ setInterval(function() {
     for (var attr in players)
     {
         players[attr].lineArr = calcLineArr(players[attr], 'Player', players[attr].id);
+        if ( players[attr].type == 'Player')
+        {
+             players[attr].timeAttack += timeIter;
+        }
     }
     playerBotMoving();
   //  bullets.shot(10,10,0,20);
